@@ -302,7 +302,7 @@ This catalog adds stable requirement IDs (`REQ-*`) and testable acceptance crite
 - **REQ-F-002** (Source: `FR-002` / RDD ID: `FR-COMMON-PAGINATION-001`)
   - Requirement: Client MUST support both page-based and offset-based pagination.
   - Acceptance Criteria:
-    - AC-1: Given `_page`/`_per_page` are set, when building a request, then query parameters include `_page` and `_per_page` and do not include `_skip`/`_limit` unless explicitly provided as escape-hatch extras.
+    - AC-1: Given `_page`/`_per_page` are set, when building a request, then query parameters include `_page` and `_per_page` and do not include `_skip`/`_limit`.
     - AC-2: Given `_skip`/`_limit` are set (and `_page`/`_per_page` are unset), when building a request, then query parameters include `_skip` and `_limit`.
     - AC-3: Given both page-based and offset-based inputs are provided, when building a request, then the client returns `InvalidPaginationParameters` and issues no HTTP request.
 
@@ -1429,11 +1429,11 @@ mp-api-rs/
 
 * Responsibilities (explicit; MUST/SHALL statements; testable)
   - The query layer SHALL support both page-based and offset-based pagination using `_page`, `_per_page`, `_skip`, `_limit` (FR-002).
-  - If `_page`/`_per_page` are set, they SHALL take precedence over `_skip`/`_limit` (FR-002).
+  - The query layer SHALL serialize either page-based or offset-based pagination, and SHALL reject any request that mixes page-based and offset-based pagination inputs (FR-002).
   - Conflicting pagination inputs SHALL be rejected client-side with `InvalidPaginationParameters` and SHALL NOT issue HTTP (FR-002).
   - The query layer SHALL clamp `_limit` and `_per_page` to 1000 where documented in OpenAPI (FR-002).
   - The query layer SHALL support field projection via `_fields` (comma-separated) and `_all_fields` (boolean) (FR-003).
-  - The query layer SHALL support an escape hatch for arbitrary query parameters that are passed through verbatim (FR-049, FR-005).
+  - The query layer SHALL support an escape hatch for additional non-reserved query parameters that are passed through verbatim; reserved typed-query keys (`_page`, `_per_page`, `_skip`, `_limit`, `_fields`, `_all_fields`) SHALL be rejected from the escape hatch (FR-049, FR-005).
 
 * Inputs/Outputs
   - Inputs: typed parameter structs and/or user-provided key/value pairs.
@@ -1441,16 +1441,15 @@ mp-api-rs/
 
 * Public Interfaces
   - `pub struct Pagination { pub page: Option<u32>, pub per_page: Option<u32>, pub skip: Option<u32>, pub limit: Option<u32> }`
-  - `impl Pagination { pub fn validate_and_normalize(&self) -> Result<NormalizedPagination, MpApiError>; }`
   - `pub struct Projection { pub fields: Option<Vec<String>>, pub all_fields: bool }`
   - `pub struct ExtraQueryParams(pub std::collections::BTreeMap<String, String>);`
   - `pub trait ToQueryPairs { fn to_query_pairs(&self) -> Result<Vec<(String,String)>, MpApiError>; }`
 
 * Internal Design
   - Normalization algorithm:
-    - detect conflict: any combination where (`page` is set AND `skip` is set) OR (`per_page` is set AND `limit` is set) => error
+    - detect conflict: any combination where any page-based field (`page` or `per_page`) is set and any offset-based field (`skip` or `limit`) is set => error
     - effective pagination:
-      - if `page`/`per_page` set => serialize only `_page`/`_per_page` (ignore skip/limit)
+      - if `page`/`per_page` set (and `skip`/`limit` are unset) => serialize only `_page`/`_per_page`
       - else => serialize `_skip`/`_limit` when present
     - clamp: `_limit` and `_per_page` = min(value, 1000)
 
