@@ -35,3 +35,7 @@
 ## Security & Configuration Tips
 - Never commit API keys or secrets.
 - Default to HTTPS endpoints; only allow insecure HTTP for explicit local test scenarios.
+
+## Rust review policy
+- For any changes touching *.rs or Cargo.toml/Cargo.lock, spawn the `rust-reviewer` agent and wait for its review before finalizing.
+- Do not merge or finalize if rust-reviewer reports CRITICAL/HIGH issues.
